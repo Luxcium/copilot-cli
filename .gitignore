@@ -1,0 +1,16 @@
+# Logs
+logs/*.log
+logs/*.txt
+
+# Temporary files
+*.tmp
+*.bak
+*~
+
+# Local environment
+.env
+.env.local
+
+# OS files
+.DS_Store
+Thumbs.db
