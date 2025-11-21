@@ -1,0 +1,14 @@
+{
+  "Servers": {
+    "1": {
+      "Name": "Copilot CLI Database",
+      "Group": "Servers",
+      "Host": "copilot-cli-postgres",
+      "Port": 5432,
+      "MaintenanceDB": "copilot_cli",
+      "Username": "copilot_user",
+      "SSLMode": "prefer",
+      "PassFile": "/pgpass"
+    }
+  }
+}
