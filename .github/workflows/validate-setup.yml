@@ -26,12 +26,14 @@ jobs:
     runs-on: ubuntu-latest
     
     # Use PostgreSQL service container - fully isolated from local
+    # NOTE: Password can be set via TEST_DB_PASSWORD secret for enhanced security
+    # Falls back to default test password if secret not configured
     services:
       postgres:
         image: postgres:16-alpine
         env:
           POSTGRES_USER: copilot_user
-          POSTGRES_PASSWORD: test_password_cloud_only
+          POSTGRES_PASSWORD: ${{ secrets.TEST_DB_PASSWORD || 'test_password_cloud_only' }}
           POSTGRES_DB: copilot_cli
         options: >-
           --health-cmd pg_isready
@@ -46,13 +48,15 @@ jobs:
         uses: actions/checkout@v4
 
       - name: Verify PostgreSQL is ready
+        env:
+          PGPASSWORD: ${{ secrets.TEST_DB_PASSWORD || 'test_password_cloud_only' }}
         run: |
           echo "Testing PostgreSQL connection..."
-          PGPASSWORD=test_password_cloud_only psql -h localhost -U copilot_user -d copilot_cli -c "SELECT version();"
+          psql -h localhost -U copilot_user -d copilot_cli -c "SELECT version();"
           
       - name: Test database operations
         env:
-          PGPASSWORD: test_password_cloud_only
+          PGPASSWORD: ${{ secrets.TEST_DB_PASSWORD || 'test_password_cloud_only' }}
         run: |
           echo "Creating test table..."
           psql -h localhost -U copilot_user -d copilot_cli -c "

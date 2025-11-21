@@ -103,9 +103,17 @@ configure_database_connection() {
         
         if [ -f "$env_file" ]; then
             # Source .env file for local credentials
-            set -a  # Export all variables
-            source "$env_file"
-            set +a
+            # Only export specific database-related variables for security
+            while IFS='=' read -r key value; do
+                # Skip comments and empty lines
+                [[ "$key" =~ ^#.*$ ]] && continue
+                [[ -z "$key" ]] && continue
+                
+                # Only export database-related variables
+                if [[ "$key" =~ ^(POSTGRES_|DATABASE_|PGADMIN_) ]]; then
+                    export "$key"="$value"
+                fi
+            done < "$env_file"
             
             echo -e "${GREEN}✓${NC} Local configuration loaded from .env"
             echo "   Host: ${POSTGRES_HOST}"
@@ -168,7 +176,8 @@ print_configuration_summary() {
     echo "  Port: ${POSTGRES_PORT}"
     echo "  Database: ${POSTGRES_DB}"
     echo "  User: ${POSTGRES_USER}"
-    echo "  Connection: ${DATABASE_URL//:*@/:***@}"  # Mask password in output
+    # Don't display connection string to avoid any potential password leaks
+    echo "  Connection: postgresql://${POSTGRES_USER}:***@${POSTGRES_HOST}:${POSTGRES_PORT}/${POSTGRES_DB}"
     echo ""
     echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
     echo ""
