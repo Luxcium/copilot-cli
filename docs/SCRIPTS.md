@@ -67,6 +67,64 @@ DATA_VOLUME="copilot-cli-pgdata"
 - Confirmation for destructive operations
 - Detailed logging
 
+### `scripts/detect-environment.sh`
+
+**Purpose:** Detect deployment environment (local vs cloud) and configure database connection accordingly.
+
+**Location:** [`scripts/detect-environment.sh`](../scripts/detect-environment.sh)
+
+**Usage:**
+```bash
+# MUST be sourced, not executed
+source scripts/detect-environment.sh
+
+# Now you have these variables:
+# - $DEPLOYMENT_ENV: "local" or "cloud"
+# - $IS_CI: "true" or "false"
+# - $POSTGRES_HOST: Database host
+# - $POSTGRES_PORT: Database port
+# - $POSTGRES_USER: Database user
+# - $POSTGRES_DB: Database name
+# - $DATABASE_URL: Full connection string
+```
+
+**What it does:**
+- Detects GitHub Actions, GitLab CI, CircleCI, Jenkins, Travis, or generic CI
+- Loads `.env` file for local environment
+- Uses environment variables for cloud/CI
+- Sets appropriate port (5434 local, 5432 cloud)
+- Configures connection string
+- Verifies database connection if psql available
+
+**When to use:**
+- Before any database operations
+- In scripts that need to work in both environments
+- When you need environment-aware configuration
+
+**Example:**
+```bash
+#!/bin/bash
+set -euo pipefail
+
+# Load environment configuration
+source scripts/detect-environment.sh
+
+# Use the configured variables
+PGPASSWORD="$POSTGRES_PASSWORD" psql \
+  -h "$POSTGRES_HOST" \
+  -p "$POSTGRES_PORT" \
+  -U "$POSTGRES_USER" \
+  -d "$POSTGRES_DB" \
+  -c "SELECT version();"
+```
+
+**Safety features:**
+- Read-only detection (no modifications)
+- Automatic environment detection
+- Validates credentials availability
+- Pretty output with status indicators
+- Safe to run multiple times
+
 ---
 
 ## For AI Agents
@@ -105,10 +163,16 @@ DATA_VOLUME="copilot-cli-pgdata"
 ### Script Selection Guide
 
 **Need to:**
-- Set up database → `scripts/setup-postgres.sh --setup`
+- Detect environment → `source scripts/detect-environment.sh`
+- Set up local database → `scripts/setup-postgres.sh --setup`
 - Check database status → `scripts/setup-postgres.sh --status`
 - Start database → `scripts/setup-postgres.sh --start`
 - Stop database → `scripts/setup-postgres.sh --stop`
+
+**Cloud/CI operations:**
+- Environment detected automatically in workflows
+- Database provided as service container
+- See [CLOUD_DEPLOYMENT.md](./CLOUD_DEPLOYMENT.md) for details
 
 **For system operations outside this repo:**
 - Create a new script first
@@ -121,3 +185,5 @@ DATA_VOLUME="copilot-cli-pgdata"
 - [Main README](../README.md)
 - [Safety Guidelines](../SAFETY_GUIDELINES.md)
 - [Database Documentation](./DATABASE.md)
+- [Cloud Deployment Guide](./CLOUD_DEPLOYMENT.md)
+- [AI Agent Guide](./AI_AGENT_GUIDE.md)
