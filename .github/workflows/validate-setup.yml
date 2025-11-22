@@ -1,0 +1,224 @@
+name: Validate Cloud Setup
+
+# Cost-optimized triggers: Only on specific events
+on:
+  workflow_dispatch:  # Manual trigger only - no automatic costs
+  pull_request:
+    paths:
+      - 'scripts/**'
+      - 'docs/**'
+      - '.github/workflows/**'
+  push:
+    branches:
+      - main
+    paths:
+      - 'scripts/**'
+      - '.github/workflows/**'
+
+# Prevent concurrent runs to save resources
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+# Minimal permissions for security
+permissions:
+  contents: read
+
+jobs:
+  validate-cloud-setup:
+    name: Validate PostgreSQL Setup in Cloud
+    runs-on: ubuntu-latest
+    
+    # Use PostgreSQL service container - fully isolated from local
+    # NOTE: Password can be set via TEST_DB_PASSWORD secret for enhanced security
+    # Falls back to default test password if secret not configured
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_USER: copilot_user
+          POSTGRES_PASSWORD: ${{ secrets.TEST_DB_PASSWORD || 'test_password_cloud_only' }}
+          POSTGRES_DB: copilot_cli
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+        ports:
+          - 5432:5432
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Verify PostgreSQL is ready
+        env:
+          PGPASSWORD: ${{ secrets.TEST_DB_PASSWORD || 'test_password_cloud_only' }}
+        run: |
+          echo "Testing PostgreSQL connection..."
+          psql -h localhost -U copilot_user -d copilot_cli -c "SELECT version();"
+          
+      - name: Test database operations
+        env:
+          PGPASSWORD: ${{ secrets.TEST_DB_PASSWORD || 'test_password_cloud_only' }}
+        run: |
+          echo "Creating test table..."
+          psql -h localhost -U copilot_user -d copilot_cli -c "
+            CREATE TABLE IF NOT EXISTS test_table (
+              id SERIAL PRIMARY KEY,
+              created_at TIMESTAMP DEFAULT NOW(),
+              data TEXT
+            );
+          "
+          
+          echo "Inserting test data..."
+          psql -h localhost -U copilot_user -d copilot_cli -c "
+            INSERT INTO test_table (data) VALUES ('Cloud test data');
+          "
+          
+          echo "Querying test data..."
+          psql -h localhost -U copilot_user -d copilot_cli -c "
+            SELECT * FROM test_table;
+          "
+          
+          echo "✓ Database operations successful in cloud environment"
+
+      - name: Validate documentation
+        run: |
+          echo "Checking documentation files..."
+          test -f README.md || (echo "❌ README.md missing" && exit 1)
+          test -f SAFETY_GUIDELINES.md || (echo "❌ SAFETY_GUIDELINES.md missing" && exit 1)
+          test -f docs/DATABASE.md || (echo "❌ docs/DATABASE.md missing" && exit 1)
+          test -f docs/SCRIPTS.md || (echo "❌ docs/SCRIPTS.md missing" && exit 1)
+          test -f docs/QUICK_REFERENCE.md || (echo "❌ docs/QUICK_REFERENCE.md missing" && exit 1)
+          echo "✓ All required documentation present"
+
+      - name: Validate scripts
+        run: |
+          echo "Checking script files..."
+          test -f scripts/setup-postgres.sh || (echo "❌ scripts/setup-postgres.sh missing" && exit 1)
+          test -x scripts/setup-postgres.sh || (echo "❌ scripts/setup-postgres.sh not executable" && exit 1)
+          echo "✓ All required scripts present and executable"
+
+      - name: Test script help output
+        run: |
+          echo "Testing script help..."
+          bash scripts/setup-postgres.sh --help
+          echo "✓ Script help output works"
+
+  validate-documentation:
+    name: Validate Documentation Quality
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Check markdown files
+        run: |
+          echo "Validating markdown syntax..."
+          # Check all markdown files exist
+          for file in README.md SAFETY_GUIDELINES.md docs/*.md; do
+            if [ -f "$file" ]; then
+              echo "✓ Found: $file"
+              # Check for basic markdown structure
+              if grep -q "^#" "$file"; then
+                echo "  - Has headers"
+              else
+                echo "  ⚠ No headers found"
+              fi
+            else
+              echo "❌ Missing: $file"
+              exit 1
+            fi
+          done
+          
+      - name: Verify AI agent instructions
+        run: |
+          echo "Checking AI agent guidance in documentation..."
+          
+          # Check README for AI agent section
+          if grep -q "For AI Agents" README.md; then
+            echo "✓ README has AI agent instructions"
+          else
+            echo "❌ README missing AI agent section"
+            exit 1
+          fi
+          
+          # Check SAFETY_GUIDELINES for AI constraints
+          if grep -q "Never Do" SAFETY_GUIDELINES.md; then
+            echo "✓ Safety guidelines has constraints"
+          else
+            echo "❌ Safety guidelines incomplete"
+            exit 1
+          fi
+          
+          echo "✓ Documentation includes proper AI agent guidance"
+
+  validate-isolation:
+    name: Validate Environment Isolation
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        
+      - name: Verify no local paths in config
+        run: |
+          echo "Checking for hardcoded local paths..."
+          
+          # Check for local Fedora paths
+          if grep -r "/projects/copilot-cli" . --exclude-dir=.git 2>/dev/null; then
+            echo "⚠ Found references to local paths (expected in docs)"
+          fi
+          
+          # Verify .gitignore properly excludes local files
+          if grep -q ".env" .gitignore && grep -q "logs/" .gitignore; then
+            echo "✓ .gitignore properly configured"
+          else
+            echo "❌ .gitignore missing critical entries"
+            exit 1
+          fi
+          
+          echo "✓ Isolation checks passed"
+          
+      - name: Verify no committed secrets
+        run: |
+          echo "Checking for accidentally committed secrets..."
+          
+          if [ -f .env ]; then
+            echo "❌ .env file should not be committed"
+            exit 1
+          fi
+          
+          # Check for password patterns in committed files
+          if git grep -i "password.*=" -- '*.sh' '*.md' | grep -v "POSTGRES_PASSWORD" | grep -v "example" | grep -v "documentation"; then
+            echo "⚠ Found potential password references"
+          fi
+          
+          echo "✓ No obvious secrets in repository"
+
+# Summary job to check all validations
+  validation-summary:
+    name: All Validations Summary
+    runs-on: ubuntu-latest
+    needs: [validate-cloud-setup, validate-documentation, validate-isolation]
+    if: always()
+    
+    steps:
+      - name: Check validation results
+        run: |
+          echo "Validation Summary:"
+          echo "  - Cloud Setup: ${{ needs.validate-cloud-setup.result }}"
+          echo "  - Documentation: ${{ needs.validate-documentation.result }}"
+          echo "  - Isolation: ${{ needs.validate-isolation.result }}"
+          
+          if [ "${{ needs.validate-cloud-setup.result }}" == "success" ] && \
+             [ "${{ needs.validate-documentation.result }}" == "success" ] && \
+             [ "${{ needs.validate-isolation.result }}" == "success" ]; then
+            echo "✓ All validations passed!"
+            exit 0
+          else
+            echo "❌ Some validations failed"
+            exit 1
+          fi

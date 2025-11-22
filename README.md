@@ -9,11 +9,13 @@ This serves as the central location for:
 - Custom configurations and settings
 - Session context and history when working outside of specific projects
 - Documentation of usage patterns and customizations
-- Persistent data storage via PostgreSQL
+- Persistent data storage via PostgreSQL (local and cloud-compatible)
 
 ## Important: Safety First
 
-**⚠️ This repository operates on a live production computer (Fedora 42 KDE workstation).**
+**⚠️ This repository operates in two modes:**
+- **Local:** Live production computer (Fedora 42 KDE workstation)
+- **Cloud/Remote:** Ephemeral CI/CD environments (GitHub Actions)
 
 All AI agents and human users MUST read and follow [`SAFETY_GUIDELINES.md`](./SAFETY_GUIDELINES.md) before making any changes.
 
@@ -23,11 +25,17 @@ All AI agents and human users MUST read and follow [`SAFETY_GUIDELINES.md`](./SA
 /projects/copilot-cli/
 ├── README.md                    # This file - main entry point
 ├── SAFETY_GUIDELINES.md         # CRITICAL: Read before any operations
+├── .github/workflows/           # GitHub Actions CI/CD
+│   └── validate-setup.yml      # Cloud validation workflow
 ├── docs/                        # Detailed documentation
-│   ├── DATABASE.md             # PostgreSQL setup and usage
-│   └── SCRIPTS.md              # Available scripts reference
+│   ├── DATABASE.md             # PostgreSQL setup (local)
+│   ├── CLOUD_DEPLOYMENT.md     # Cloud/remote deployment guide
+│   ├── AI_AGENT_GUIDE.md       # Comprehensive AI agent guide
+│   ├── SCRIPTS.md              # Available scripts reference
+│   └── QUICK_REFERENCE.md      # Quick command reference
 ├── scripts/                     # Safe, reusable automation scripts
-│   └── setup-postgres.sh       # PostgreSQL Docker container setup
+│   ├── setup-postgres.sh       # PostgreSQL Docker container setup
+│   └── detect-environment.sh   # Environment detection utility
 └── logs/                        # Operation logs (gitignored)
 ```
 
@@ -59,33 +67,53 @@ All AI agents and human users MUST read and follow [`SAFETY_GUIDELINES.md`](./SA
 **Before any operation, you MUST:**
 
 1. Read [`SAFETY_GUIDELINES.md`](./SAFETY_GUIDELINES.md) - understand constraints
-2. Read [`docs/DATABASE.md`](./docs/DATABASE.md) - database operations
-3. Read [`docs/SCRIPTS.md`](./docs/SCRIPTS.md) - available automation
-4. Stay within `/projects/copilot-cli/` unless explicitly authorized
-5. Use scripts with `--dry-run` first, then get approval
-6. Log all operations to `logs/`
+2. **Detect environment** (local vs cloud) - use `scripts/detect-environment.sh`
+3. Read [`docs/AI_AGENT_GUIDE.md`](./docs/AI_AGENT_GUIDE.md) - comprehensive operational guide
+4. Read [`docs/DATABASE.md`](./docs/DATABASE.md) - local database operations
+5. Read [`docs/CLOUD_DEPLOYMENT.md`](./docs/CLOUD_DEPLOYMENT.md) - cloud deployment guide
+6. Stay within repository scope unless explicitly authorized
+7. Use scripts with `--dry-run` first, then get approval
+8. Log all operations appropriately (local: `logs/`, cloud: workflow logs)
 
 **Key constraints:**
-- ❌ Never modify files outside this repository directly
-- ❌ Never install/uninstall packages without permission  
+- ❌ Never modify files outside this repository directly (local only)
+- ❌ Never install/uninstall packages without permission (local only)
 - ❌ Never execute destructive commands without dry-run + approval
-- ✅ Always use scripts for system interactions
+- ❌ Never share state between local and cloud environments
+- ✅ Always detect environment before operations
+- ✅ Always use environment-appropriate configuration
 - ✅ Always validate and handle errors gracefully
 - ✅ Always provide clear explanations before actions
 
-## Environment
+## Environments
 
-**Target System:**
-- OS: Fedora 42 Linux
-- Desktop: KDE Plasma
-- User: luxcium
-- Tools: Docker, git, gh CLI, curl
-- Purpose: Daily development workstation
+### Local Development
+- **OS:** Fedora 42 Linux
+- **Desktop:** KDE Plasma
+- **User:** luxcium
+- **Tools:** Docker, git, gh CLI, curl
+- **Purpose:** Daily development workstation
+- **Database:** Docker container with persistent storage
+- **Port:** 5434 (custom to avoid conflicts)
+
+### Cloud/Remote (CI/CD)
+- **Platform:** GitHub Actions (other platforms supported via similar patterns)
+- **OS:** Ubuntu (GitHub-hosted runners)
+- **Purpose:** Validation, testing, CI/CD
+- **Database:** Service container (ephemeral)
+- **Port:** 5432 (standard, isolated)
+- **Isolation:** Complete separation from local environment
 
 ## Documentation
 
+### Essential Reading (Start Here)
 - [`SAFETY_GUIDELINES.md`](./SAFETY_GUIDELINES.md) - **READ THIS FIRST**
-- [`docs/DATABASE.md`](./docs/DATABASE.md) - PostgreSQL setup and management
+- [`docs/AI_AGENT_GUIDE.md`](./docs/AI_AGENT_GUIDE.md) - **Comprehensive AI agent guide**
+- [`docs/QUICK_REFERENCE.md`](./docs/QUICK_REFERENCE.md) - Quick command reference
+
+### Detailed Guides
+- [`docs/DATABASE.md`](./docs/DATABASE.md) - Local PostgreSQL setup and management
+- [`docs/CLOUD_DEPLOYMENT.md`](./docs/CLOUD_DEPLOYMENT.md) - Cloud/remote deployment guide
 - [`docs/SCRIPTS.md`](./docs/SCRIPTS.md) - Available scripts and usage
 
 ## Support
